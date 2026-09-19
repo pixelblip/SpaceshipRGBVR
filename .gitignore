@@ -1,0 +1,10 @@
+.DS_Store
+.AppleDouble
+.LSOverride
+certs/
+*.pem
+.vercel
+node_modules/
+.env
+.env.*
+starliner-v3*.html

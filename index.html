@@ -2382,9 +2382,8 @@ AFRAME.registerComponent('audio-react', {
           const d = document.querySelector('a-scene').components.director;
           if (d) d.setAct(0, true);
           if (note) {
-            note.innerHTML = 'Deep Space Rumble — ' +
-              Math.floor(el2.duration / 60) + ':' + ('0' + Math.floor(el2.duration % 60)).slice(-2) +
-              ' · looping quietly';
+            note.innerHTML = 'Deep Space Rumble — seamless loop · ' +
+              Math.floor(el2.duration / 60) + ':' + ('0' + Math.floor(el2.duration % 60)).slice(-2);
             note.classList.add('on');
           }
         });

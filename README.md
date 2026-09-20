@@ -12,7 +12,11 @@ Open `https://<your-lan-ip>:8443` on the headset (same Wi‑Fi), accept the cert
 
 ## Music
 
-`track.mp3` (*Deep Space Rumble*) loads and loops at a low volume. Drop another file or use `?track=<url>` to override.
+`track.mp3` (*Deep Space Rumble*, detected **D major** @ ~53 BPM) loads as a quiet looping bed. A generative live score (`space-synth.js`) plays arpeggios, filter sweeps, and lead lines through stereo delays in that key — patterns shift with each scene. Press **M** to mute the synth.
+
+## Visual life
+
+`deck-life.js` fires comets, cabin hue shifts, ticker alerts, and camera wanders so the deck keeps changing between acts.
 
 ## VR controls
 

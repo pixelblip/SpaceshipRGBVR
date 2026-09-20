@@ -5,6 +5,8 @@
 <title>STARLINER VII — Flight Deck</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <script src="https://cdn.jsdelivr.net/npm/aframe@1.7.0/dist/aframe-master.min.js"></script>
+<script src="space-synth.js"></script>
+<script src="deck-life.js"></script>
 <style>
   html,body{margin:0;padding:0;background:#000;overflow:hidden;font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace}
   #overlay{position:fixed;left:14px;bottom:14px;z-index:10;color:#ff9c3a;font-size:12px;line-height:1.8;
@@ -42,7 +44,7 @@
 <div id="vrhint"></div>
 <div id="overlay">
   <b>1–7</b> scene &nbsp; <b>N</b> next &nbsp; <b>A</b> autoplay &nbsp; <b>X</b> camera moves &nbsp; <b>C</b> fixed stops<br>
-  <b>L</b> letterbox &nbsp; <b>B</b> bloom &nbsp; <b>R</b> rumble &nbsp; <b>H</b> hide text &nbsp; <b>WASD</b> walk &nbsp; <b>drag</b> look<br>
+  <b>L</b> letterbox &nbsp; <b>B</b> bloom &nbsp; <b>R</b> rumble &nbsp; <b>M</b> synth &nbsp; <b>H</b> hide text &nbsp; <b>WASD</b> walk &nbsp; <b>drag</b> look<br>
   <b>VR</b> A/trigger next · B prev · X cinema · Y cams · grips auto/bloom · sticks click rumble/HUD
 </div>
 
@@ -857,15 +859,17 @@ AFRAME.registerComponent('space', {
     SHIP.refs.sunLight.color.copy(SHIP.sunColor);
     SHIP.refs.sunLight.intensity = SHIP.sunInt;
     SHIP.refs.sunCore.material.color.copy(SHIP.sunColor).multiplyScalar(10 + SHIP.sunInt * 2);
-    const pulse = 1 + Math.sin(SHIP.t * 1.7) * 0.02;
+    const pulse = 1 + Math.sin(SHIP.t * 1.7) * 0.02 + (SHIP.mood ? SHIP.mood.flare * 0.4 : 0) + SHIP.audio.high * 0.08;
     SHIP.refs.sunFlare.scale.setScalar(130 * pulse * (0.7 + SHIP.sunInt * 0.14));
     SHIP.refs.sunFlare.material.color.copy(SHIP.sunColor).multiplyScalar(2.6);
     SHIP.refs.sunHalo.scale.setScalar(380 * pulse * (0.7 + SHIP.sunInt * 0.14));
     SHIP.refs.sunHalo.material.color.copy(SHIP.sunColor);
 
     SHIP.refs.sky.material.color.copy(SHIP.nebColor)
-      .multiplyScalar(1.2).addScalar(0.4).multiplyScalar(SHIP.nebInt);
-    SHIP.refs.sky.rotation.y += dt * 0.004;
+      .multiplyScalar(1.2 * (1 + (SHIP.mood ? SHIP.mood.pulse * 0.15 : 0) + (SHIP.mood ? SHIP.mood.flare * 0.2 : 0)))
+      .addScalar(0.4).multiplyScalar(SHIP.nebInt);
+    SHIP.refs.sky.rotation.y += dt * (0.004 + (SHIP.synth ? SHIP.synth.energy * 0.012 : 0));
+    SHIP.refs.sky.rotation.z = Math.sin(SHIP.t * 0.07) * 0.025;
 
     const pl = SHIP.refs.planet;
     pl.position.copy(SHIP.planetPos);
@@ -925,7 +929,8 @@ AFRAME.registerComponent('space', {
       }
     }
     this.sparks.geometry.attributes.position.needsUpdate = true;
-    this.sparks.material.opacity = 0.35 + SHIP.warp * 0.6 + SHIP.rocks * 0.4;
+    this.sparks.material.opacity = 0.35 + SHIP.warp * 0.6 + SHIP.rocks * 0.4 +
+      (SHIP.synth ? SHIP.synth.energy * 0.35 : 0) + (SHIP.mood ? SHIP.mood.pulse * 0.2 : 0);
   }
 });
 
@@ -1708,6 +1713,8 @@ SCREENS.annunciator = function (x, w, h, t) {
     else if (i === 1 && SHIP.warp > 0.04) { col = '#7a4aff'; txt = '#fff'; }
     else if (i === 4 && SHIP.alert > 0.5) { col = blink ? '#ff5a10' : '#401a04'; txt = '#fff'; }
     else if (i === 9 && SHIP.alert > 0.2) { col = '#c8a020'; txt = '#1a1200'; }
+    else if (SHIP.mood && SHIP.mood.scramble > 0.3 && i === 7) { col = blink ? '#2a8cff' : '#0a2040'; txt = '#fff'; }
+    else if (SHIP.synth && SHIP.synth.energy > 0.35 && i === 13) { col = '#1a3a2a'; txt = '#7dff9a'; }
     else if (Math.sin(t * 0.7 + i * 2.3) > 0.94) { col = '#3a3410'; txt = '#b8a840'; }
     else { col = '#0f2a18'; txt = '#2f6a44'; }
     x.fillStyle = col;
@@ -1725,13 +1732,16 @@ SCREENS.annunciator = function (x, w, h, t) {
 
 SCREENS.ticker = function (x, w, h, t) {
   x.fillStyle = '#060402'; x.fillRect(0, 0, w, h);
+  const flash = (SHIP.mood && SHIP.mood.scramble > 0.2 && SHIP.mood.msg)
+    ? ('  \u00b7  ' + SHIP.mood.msg + '  \u00b7  ') : '';
+  const key = (SHIP.synth && SHIP.synth.key) ? ('  \u00b7  SCORE ' + SHIP.synth.key.toUpperCase()) : '';
   const msg = 'STARLINER VII  \u00b7  DEEP RANGE SURVEY  \u00b7  CREW 2  \u00b7  FOLD WINDOW OPENS T-00:40  \u00b7  ' +
-              'SECTOR 7G TRAFFIC HEAVY  \u00b7  GATE CLEARANCE GRANTED  \u00b7  GALLEY CLOSED UNTIL 0600  \u00b7  ' +
-              'KEEP HARNESS FASTENED  \u00b7  ';
+              'SECTOR 7G TRAFFIC HEAVY  \u00b7  GATE CLEARANCE GRANTED  \u00b7  ' + flash +
+              'GALLEY CLOSED UNTIL 0600  \u00b7  KEEP HARNESS FASTENED' + key + '  \u00b7  ';
   x.font = 'bold 44px monospace';
   const tw = x.measureText(msg).width;
-  const off = (t * 150) % tw;
-  x.fillStyle = SHIP.alert > 0.4 ? '#ff5a30' : '#ffa030';
+  const off = (t * (150 + (SHIP.synth ? SHIP.synth.energy * 80 : 0))) % tw;
+  x.fillStyle = SHIP.alert > 0.4 ? '#ff5a30' : (SHIP.mood && SHIP.mood.scramble > 0.3 ? '#7dff9a' : '#ffa030');
   x.fillText(msg, -off, h * 0.72);
   x.fillText(msg, -off + tw, h * 0.72);
   /* dot-matrix mask */
@@ -2088,7 +2098,7 @@ AFRAME.registerComponent('hologram', {
   tick: function (time, delta) {
     const dt = Math.min(delta / 1000, 0.05), t = SHIP.t;
     this.holo.rotation.y += dt * 0.35;
-    this.holo.scale.setScalar(1 + SHIP.audio.bass * 0.3);
+    this.holo.scale.setScalar(1 + SHIP.audio.bass * 0.3 + (SHIP.synth ? SHIP.synth.energy * 0.25 : 0));
     this.holo.children[0].rotation.x += dt * 0.1;
     const ph = (t * 0.35) % 1;
     this.scan.position.y = 0.16 + ph * 0.72;
@@ -2382,7 +2392,7 @@ AFRAME.registerComponent('audio-react', {
           const d = document.querySelector('a-scene').components.director;
           if (d) d.setAct(0, true);
           if (note) {
-            note.innerHTML = 'Deep Space Rumble — seamless loop · ' +
+            note.innerHTML = 'Deep Space Rumble + D major live score · ' +
               Math.floor(el2.duration / 60) + ':' + ('0' + Math.floor(el2.duration % 60)).slice(-2);
             note.classList.add('on');
           }
@@ -2392,7 +2402,7 @@ AFRAME.registerComponent('audio-react', {
         const an = ctx.createAnalyser();
         an.fftSize = PERF < 0.85 ? 512 : 1024; an.smoothingTimeConstant = 0.72;
         const musicGain = ctx.createGain();
-        musicGain.gain.value = 0.32;
+        musicGain.gain.value = 0.2;
         srcNode.connect(an); an.connect(musicGain); musicGain.connect(ctx.destination);
         this.an = an; this.bins = new Uint8Array(an.frequencyBinCount); this.el2 = el2;
         ctx.resume();
@@ -2402,6 +2412,11 @@ AFRAME.registerComponent('audio-react', {
           window.addEventListener('click', go);
         });
         SHIP.audio.on = true;
+        /* reconnect live score into analyser once bed is up */
+        const synth = document.querySelector('a-scene').components['space-synth'];
+        if (synth && synth.master && this.an) {
+          try { synth.master.connect(this.an); } catch (e) {}
+        }
       } catch (err) { console.warn('audio failed', err); }
     };
 
@@ -2594,7 +2609,7 @@ window.addEventListener('load', () => {
   shadow="type: pcfsoft; autoUpdate: true"
   background="color: #000000"
   webxr="requiredFeatures: local-floor; optionalFeatures: bounded-floor, hand-tracking, layers"
-  post director alert-light audio-react engine-rumble vr-deck>
+  post director alert-light audio-react engine-rumble space-synth deck-life vr-deck>
 
   <a-entity light="type: ambient; color: #1d2a44; intensity: 0.22"></a-entity>
   <a-entity light="type: hemisphere; color: #5a72a8; groundColor: #140f0a; intensity: 0.26"></a-entity>

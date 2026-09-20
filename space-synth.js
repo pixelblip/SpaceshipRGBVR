@@ -1,50 +1,21 @@
 /* ==========================================================================
-   SPACE SYNTH — generative D-major soundtrack over the ambient bed
-   Root key detected from track.mp3 (Krumhansl): D major @ ~53 BPM
-   Arps, filter sweeps, lead lines → stereo delays
+   SPACE TEXTURE — quiet D-major atmosphere under the ambient bed
+   No arps / leads. Slow drones, open fifths, soft noise wind, rare glints.
    ========================================================================== */
 (function () {
-  const ROOT = 2; /* D */
-  const BPM = 53;
-  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const ROOT_PC = 2; /* D */
+  function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function pcHz(pc, oct) { return midiHz(12 * (oct + 1) + pc); }
 
-  const SCALES = {
-    major: [0, 2, 4, 5, 7, 9, 11],
-    lydian: [0, 2, 4, 6, 7, 9, 11],
-    mixo: [0, 2, 4, 5, 7, 9, 10],
-    dorian: [0, 2, 3, 5, 7, 9, 10],
-    pent: [0, 2, 4, 7, 9]
-  };
-
-  /* progression in scale degrees (I vi IV V ii iii) — stays in D family */
-  const PROGS = [
-    [0, 5, 3, 4],       /* I vi IV V */
-    [0, 3, 4, 0],       /* I IV V I */
-    [0, 5, 0, 4],       /* I vi I V */
-    [5, 3, 0, 4],       /* vi IV I V */
-    [0, 2, 3, 4]        /* I iii IV V */
+  /* open voicings that sit with a deep-space drone */
+  const VOICINGS = [
+    [0, 7],           /* D–A */
+    [0, 7, 12],       /* D–A–D */
+    [0, 5, 7],        /* D–G–A (sus) */
+    [0, 7, 16],       /* D–A–F# */
+    [0, 3, 7],        /* Dm colour, sparse */
+    [0, 7, 14]        /* D–A–E */
   ];
-
-  const ARP_SHAPES = [
-    [0, 2, 4, 7, 4, 2],
-    [0, 4, 7, 9, 7, 4],
-    [0, 2, 4, 2, 7, 4],
-    [7, 4, 2, 0, 2, 4],
-    [0, 4, 9, 7, 4, 0],
-    [0, 2, 7, 9, 7, 11]
-  ];
-
-  function midiToHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-  /* scientific pitch: octave 4 → C4 = MIDI 60 */
-  function noteMidi(rootPc, scale, degree, octave) {
-    const len = scale.length;
-    let deg = degree;
-    let oct = octave;
-    while (deg < 0) { deg += len; oct -= 1; }
-    const octOff = Math.floor(deg / len);
-    const idx = deg % len;
-    return 12 * (oct + 1 + octOff) + rootPc + scale[idx];
-  }
 
   if (typeof AFRAME === 'undefined') return;
 
@@ -52,30 +23,25 @@
     init: function () {
       this.on = true;
       this.ready = false;
-      this.nextT = 0;
-      this.beat = 0;
-      this.bar = 0;
-      this.progI = 0;
-      this.chordI = 0;
-      this.arpI = 0;
-      this.scaleName = 'major';
-      this.pattern = 0;
-      this.leadNext = 0;
-      this.sweepPhase = 0;
-      this.pending = [];
-      SHIP.synth = { on: true, note: 0, chord: 0, energy: 0, key: 'D major' };
+      this.voiceI = 0;
+      this.nextMorph = 0;
+      this.nextGlint = 0;
+      this.phase = 0;
+      SHIP.synth = { on: true, note: 50, chord: 0, energy: 0, key: 'D major' };
 
       const kick = () => this.begin();
       ['click', 'keydown', 'touchstart', 'pointerdown'].forEach(ev =>
-        window.addEventListener(ev, kick, { once: false }));
+        window.addEventListener(ev, kick));
       this.el.addEventListener('enter-vr', kick);
-      setTimeout(kick, 800);
+      setTimeout(kick, 900);
 
       window.addEventListener('keydown', e => {
         if (e.key.toLowerCase() === 'm') {
           this.on = !this.on;
           SHIP.synth.on = this.on;
-          if (this.master) this.master.gain.setTargetAtTime(this.on ? this.level : 0, AC().currentTime, 0.08);
+          if (this.master) {
+            this.master.gain.setTargetAtTime(this.on ? this.level : 0, AC().currentTime, 0.3);
+          }
         }
       });
     },
@@ -87,230 +53,192 @@
       try { ctx = AC(); } catch (e) { this.starting = false; return; }
       ctx.resume();
 
-      this.level = 0.2;
+      this.level = 0.14;
       this.master = ctx.createGain();
       this.master.gain.value = 0;
-      this.master.gain.setTargetAtTime(this.level, ctx.currentTime, 0.4);
+      this.master.gain.setTargetAtTime(this.level, ctx.currentTime, 1.2);
 
-      /* lush parallel delays */
-      this.delayL = ctx.createDelay(1.5);
-      this.delayR = ctx.createDelay(1.5);
-      this.delayL.delayTime.value = 0.42;
-      this.delayR.delayTime.value = 0.63;
-      this.fbL = ctx.createGain(); this.fbL.gain.value = 0.48;
-      this.fbR = ctx.createGain(); this.fbR.gain.value = 0.42;
-      this.delayMix = ctx.createGain(); this.delayMix.gain.value = 0.55;
-      this.dry = ctx.createGain(); this.dry.gain.value = 0.7;
+      /* gentle wash — long delay, low feedback, dark */
+      this.delay = ctx.createDelay(2.5);
+      this.delay.delayTime.value = 1.35;
+      this.fb = ctx.createGain();
+      this.fb.gain.value = 0.38;
+      this.delayFilter = ctx.createBiquadFilter();
+      this.delayFilter.type = 'lowpass';
+      this.delayFilter.frequency.value = 1600;
+      this.wet = ctx.createGain();
+      this.wet.gain.value = 0.45;
+      this.dry = ctx.createGain();
+      this.dry.gain.value = 0.55;
 
-      this.filter = ctx.createBiquadFilter();
-      this.filter.type = 'lowpass';
-      this.filter.frequency.value = 1200;
-      this.filter.Q.value = 0.9;
-
-      this.leadFilter = ctx.createBiquadFilter();
-      this.leadFilter.type = 'lowpass';
-      this.leadFilter.frequency.value = 2400;
-      this.leadFilter.Q.value = 1.2;
-
-      const merger = ctx.createChannelMerger(2);
-      this.filter.connect(this.dry);
+      this.bus = ctx.createGain();
+      this.bus.connect(this.dry);
       this.dry.connect(this.master);
-      this.filter.connect(this.delayL);
-      this.filter.connect(this.delayR);
-      this.delayL.connect(this.fbL); this.fbL.connect(this.delayR);
-      this.delayR.connect(this.fbR); this.fbR.connect(this.delayL);
-      this.delayL.connect(merger, 0, 0);
-      this.delayR.connect(merger, 0, 1);
-      merger.connect(this.delayMix);
-      this.delayMix.connect(this.master);
-
-      this.leadFilter.connect(this.delayL);
-      this.leadFilter.connect(this.delayR);
-      this.leadFilter.connect(this.dry);
-
+      this.bus.connect(this.delay);
+      this.delay.connect(this.delayFilter);
+      this.delayFilter.connect(this.fb);
+      this.fb.connect(this.delay);
+      this.delayFilter.connect(this.wet);
+      this.wet.connect(this.master);
       this.master.connect(ctx.destination);
 
-      /* tap into shared analyser if present so visuals react to synth too */
       const audio = this.el.components['audio-react'];
       if (audio && audio.an) {
         try { this.master.connect(audio.an); } catch (e) {}
       }
 
+      /* --- sub drone (D1/D2) --- */
+      this.drone = this.makePartial(ctx, pcHz(ROOT_PC, 1), 'sine', 0.045);
+      this.droneOct = this.makePartial(ctx, pcHz(ROOT_PC, 2), 'sine', 0.028);
+      this.droneFifth = this.makePartial(ctx, pcHz((ROOT_PC + 7) % 12, 2), 'sine', 0.018);
+
+      /* --- soft pad voices (3) --- */
+      this.pads = [];
+      for (let i = 0; i < 3; i++) {
+        const p = this.makePartial(ctx, pcHz(ROOT_PC, 3), 'sine', 0.0001);
+        p.osc.type = i === 1 ? 'triangle' : 'sine';
+        this.pads.push(p);
+      }
+
+      /* --- space wind: filtered noise --- */
+      const nLen = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, nLen, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < nLen; i++) {
+        const white = Math.random() * 2 - 1;
+        last = (last + 0.02 * white) / 1.02;
+        data[i] = last * 3.5;
+      }
+      this.noise = ctx.createBufferSource();
+      this.noise.buffer = buf;
+      this.noise.loop = true;
+      this.noiseFilter = ctx.createBiquadFilter();
+      this.noiseFilter.type = 'bandpass';
+      this.noiseFilter.frequency.value = 420;
+      this.noiseFilter.Q.value = 0.6;
+      this.noiseGain = ctx.createGain();
+      this.noiseGain.gain.value = 0.012;
+      this.noise.connect(this.noiseFilter);
+      this.noiseFilter.connect(this.noiseGain);
+      this.noiseGain.connect(this.bus);
+      this.noise.start();
+
       this.ctx = ctx;
       this.ready = true;
       this.starting = false;
-      this.nextT = ctx.currentTime + 0.3;
-      this.leadNext = ctx.currentTime + 2.5;
+      this.nextMorph = ctx.currentTime + 8;
+      this.nextGlint = ctx.currentTime + 12;
+      this.applyVoicing(VOICINGS[0], ctx.currentTime, 6);
 
       const note = document.querySelector('#audionote');
-      if (note && note.classList.contains('on')) {
-        note.innerHTML = note.innerHTML.replace(/seamless loop[^<]*/, 'D major live score · looping');
+      if (note && /Deep Space|live score|seamless/i.test(note.innerHTML || '')) {
+        note.innerHTML = 'Deep Space Rumble + soft D atmosphere';
       }
     },
 
-    chordRootDegree: function () {
-      const prog = PROGS[this.progI % PROGS.length];
-      return prog[this.chordI % prog.length];
-    },
-
-    pickScale: function () {
-      const a = SHIP.act;
-      if (a === 4) return 'lydian';       /* fold — floaty */
-      if (a === 3) return 'dorian';       /* debris — tense */
-      if (a === 5) return 'pent';         /* drift — sparse */
-      if (a === 6) return 'mixo';         /* sunfall — warm */
-      return this.bar % 16 < 8 ? 'major' : 'lydian';
-    },
-
-    scheduleArp: function (when) {
-      const ctx = this.ctx;
-      const scale = SCALES[this.scaleName] || SCALES.major;
-      const chordDeg = this.chordRootDegree();
-      const shape = ARP_SHAPES[this.pattern % ARP_SHAPES.length];
-      const step = shape[this.arpI % shape.length];
-      const deg = chordDeg + step;
-      const oct = (SHIP.alert > 0.4 || SHIP.warp > 0.3) ? 4 : 3;
-      const midi = noteMidi(ROOT, scale, deg, oct);
-      const hz = midiToHz(midi);
-
+    makePartial: function (ctx, hz, type, gain) {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
-      const types = ['sine', 'triangle', 'sine', 'triangle'];
-      osc.type = types[this.pattern % types.length];
+      const f = ctx.createBiquadFilter();
+      osc.type = type;
       osc.frequency.value = hz;
-      /* soft detune twin */
-      const osc2 = ctx.createOscillator();
-      osc2.type = osc.type;
-      osc2.frequency.value = hz * 1.003;
-      const g2 = ctx.createGain();
-      g2.gain.value = 0.35;
+      f.type = 'lowpass';
+      f.frequency.value = 900;
+      g.gain.value = gain;
+      osc.connect(f);
+      f.connect(g);
+      g.connect(this.bus);
+      osc.start();
+      return { osc: osc, gain: g, filter: f };
+    },
 
-      const beatSec = 60 / BPM;
-      const dens = SHIP.warp > 0.2 ? 0.25 : (SHIP.alert > 0.3 ? 0.33 : 0.5);
-      const dur = beatSec * dens * 0.85;
-      const peak = 0.045 + SHIP.audio.bass * 0.04 + (SHIP.act === 5 ? 0.02 : 0);
-
-      g.gain.setValueAtTime(0.0001, when);
-      g.gain.exponentialRampToValueAtTime(peak, when + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-
-      osc.connect(g); osc2.connect(g2); g2.connect(g);
-      g.connect(this.filter);
-      osc.start(when); osc2.start(when);
-      osc.stop(when + dur + 0.05); osc2.stop(when + dur + 0.05);
-
-      SHIP.synth.note = midi;
-      SHIP.synth.chord = chordDeg;
-      SHIP.synth.energy = Math.min(1, SHIP.synth.energy * 0.7 + peak * 8);
-
-      this.arpI++;
-      if (this.arpI % shape.length === 0) {
-        this.beat++;
-        if (this.beat % 4 === 0) {
-          this.chordI++;
-          if (this.chordI % 4 === 0) {
-            this.bar++;
-            if (this.bar % 8 === 0) {
-              this.progI = (this.progI + 1) % PROGS.length;
-              this.pattern = (this.pattern + 1) % ARP_SHAPES.length;
-              this.scaleName = this.pickScale();
-            }
-          }
+    applyVoicing: function (voicing, when, glide) {
+      const baseOct = 3;
+      for (let i = 0; i < this.pads.length; i++) {
+        const pad = this.pads[i];
+        if (i >= voicing.length) {
+          pad.gain.gain.setTargetAtTime(0.0001, when, 1.5);
+          continue;
         }
+        const pc = (ROOT_PC + voicing[i]) % 12;
+        const oct = baseOct + Math.floor((ROOT_PC + voicing[i]) / 12);
+        const hz = pcHz(pc, oct + (i === 2 ? 1 : 0));
+        pad.osc.frequency.setTargetAtTime(hz, when, Math.max(0.4, glide * 0.25));
+        const level = 0.012 + (i === 0 ? 0.01 : 0) + SHIP.audio.bass * 0.01;
+        pad.gain.gain.setTargetAtTime(level, when, 1.2);
+        pad.filter.frequency.setTargetAtTime(700 + i * 200, when, 1);
+        SHIP.synth.note = 12 * (oct + 1) + pc;
       }
-      return dens * beatSec;
+      SHIP.synth.chord = this.voiceI;
     },
 
-    scheduleLead: function (when) {
+    scheduleGlint: function (when) {
+      /* rare, distant high partial — not a melody */
       const ctx = this.ctx;
-      const scale = SCALES[this.scaleName] || SCALES.major;
-      const chordDeg = this.chordRootDegree();
-      const choices = [0, 2, 4, 7, 9, 11, 12, 14];
-      const step = choices[(Math.random() * choices.length) | 0];
-      const midi = noteMidi(ROOT, scale, chordDeg + step, 5);
-      const hz = midiToHz(midi);
-
+      const partials = [19, 24, 28, 31]; /* overtones-ish above D */
+      const midi = 50 + partials[(Math.random() * partials.length) | 0];
       const osc = ctx.createOscillator();
-      osc.type = Math.random() < 0.5 ? 'sine' : 'triangle';
       const g = ctx.createGain();
-      const len = (60 / BPM) * (2 + (Math.random() * 3) | 0);
-
-      /* glide from previous */
-      const prev = this._prevLeadHz || hz * 0.98;
-      osc.frequency.setValueAtTime(prev, when);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(40, hz), when + 0.18);
-      this._prevLeadHz = hz;
-
-      const peak = 0.035 + SHIP.audio.mid * 0.05;
+      const f = ctx.createBiquadFilter();
+      osc.type = 'sine';
+      osc.frequency.value = midiHz(midi);
+      f.type = 'lowpass';
+      f.frequency.value = 2800;
+      const dur = 4 + Math.random() * 5;
+      const peak = 0.008 + Math.random() * 0.006;
       g.gain.setValueAtTime(0.0001, when);
-      g.gain.exponentialRampToValueAtTime(peak, when + 0.12);
-      g.gain.setValueAtTime(peak * 0.7, when + len * 0.55);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + len);
-
-      osc.connect(g); g.connect(this.leadFilter);
-      osc.start(when); osc.stop(when + len + 0.05);
-
-      /* occasional fifth harmony */
-      if (Math.random() < 0.35) {
-        const o2 = ctx.createOscillator();
-        const gH = ctx.createGain();
-        o2.type = 'sine';
-        o2.frequency.value = hz * 1.5;
-        gH.gain.setValueAtTime(0.0001, when);
-        gH.gain.exponentialRampToValueAtTime(peak * 0.35, when + 0.15);
-        gH.gain.exponentialRampToValueAtTime(0.0001, when + len * 0.9);
-        o2.connect(gH); gH.connect(this.leadFilter);
-        o2.start(when); o2.stop(when + len + 0.05);
-      }
-    },
-
-    scheduleSweep: function (when) {
-      /* long filter breath — signature ambient move */
-      const f0 = 400 + Math.random() * 400;
-      const f1 = 1800 + Math.random() * 3200 + SHIP.warp * 2000;
-      const dur = 4 + Math.random() * 6;
-      this._sweeping = true;
-      this.filter.frequency.cancelScheduledValues(when);
-      this.filter.frequency.setValueAtTime(f0, when);
-      this.filter.frequency.exponentialRampToValueAtTime(Math.max(f0 + 50, f1), when + dur * 0.55);
-      this.filter.frequency.exponentialRampToValueAtTime(600 + Math.random() * 500, when + dur);
-      clearTimeout(this._sweepTimer);
-      this._sweepTimer = setTimeout(() => { this._sweeping = false; }, dur * 1000);
-
-      this.delayL.delayTime.setTargetAtTime(0.35 + Math.random() * 0.35, when, 0.5);
-      this.delayR.delayTime.setTargetAtTime(0.5 + Math.random() * 0.45, when, 0.5);
-      this.fbL.gain.setTargetAtTime(0.4 + Math.random() * 0.2, when, 0.4);
+      g.gain.exponentialRampToValueAtTime(peak, when + 1.2);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      osc.connect(f); f.connect(g); g.connect(this.bus);
+      osc.start(when); osc.stop(when + dur + 0.1);
+      SHIP.synth.energy = Math.min(1, SHIP.synth.energy + 0.25);
     },
 
     tick: function (time, delta) {
       if (!this.ready || !this.on) {
-        SHIP.synth.energy *= 0.92;
+        SHIP.synth.energy *= 0.95;
         return;
       }
       const ctx = this.ctx;
       if (ctx.state !== 'running') ctx.resume();
-
       const now = ctx.currentTime;
-      /* schedule ~0.6s ahead */
-      while (this.nextT < now + 0.55) {
-        const step = this.scheduleArp(this.nextT);
-        this.nextT += step;
-      }
-      if (now >= this.leadNext) {
-        this.scheduleLead(now + 0.05);
-        this.leadNext = now + (60 / BPM) * (4 + ((Math.random() * 4) | 0));
-        if (Math.random() < 0.55) this.scheduleSweep(now);
+      const dt = Math.min(delta / 1000, 0.05);
+      this.phase += dt;
+
+      /* drone breathes with ship thrust / bass */
+      const breath = 0.035 + SHIP.thrust * 0.02 + SHIP.audio.bass * 0.03
+        + Math.sin(this.phase * 0.11) * 0.008;
+      this.drone.gain.gain.setTargetAtTime(breath, now, 0.5);
+      this.droneOct.gain.gain.setTargetAtTime(breath * 0.55, now, 0.5);
+      this.droneFifth.gain.gain.setTargetAtTime(breath * 0.35 + SHIP.warp * 0.02, now, 0.5);
+
+      /* noise wind follows warp / alert gently */
+      const wind = 0.008 + SHIP.warp * 0.04 + SHIP.alert * 0.015
+        + Math.sin(this.phase * 0.07) * 0.003;
+      this.noiseGain.gain.setTargetAtTime(wind, now, 0.6);
+      this.noiseFilter.frequency.setTargetAtTime(
+        280 + SHIP.warp * 900 + Math.sin(this.phase * 0.13) * 80, now, 0.8);
+
+      /* darken / open delay with scene */
+      this.delayFilter.frequency.setTargetAtTime(900 + SHIP.nebInt * 500, now, 1);
+
+      if (now >= this.nextMorph) {
+        this.voiceI = (this.voiceI + 1) % VOICINGS.length;
+        /* pick voicing biased by act */
+        if (SHIP.act === 3) this.voiceI = 4;      /* debris → minor colour */
+        else if (SHIP.act === 4) this.voiceI = 2; /* fold → sus */
+        else if (SHIP.act === 5) this.voiceI = 1; /* drift → pure fifths */
+        this.applyVoicing(VOICINGS[this.voiceI], now, 8 + Math.random() * 6);
+        this.nextMorph = now + 14 + Math.random() * 18;
       }
 
-      /* slow living filter even between sweeps */
-      this.sweepPhase += delta * 0.001;
-      const lfo = 900 + Math.sin(this.sweepPhase * 0.7) * 500 + SHIP.audio.high * 800 + SHIP.warp * 1500;
-      if (!this._sweeping) {
-        this.filter.frequency.setTargetAtTime(lfo, now, 0.25);
+      if (now >= this.nextGlint) {
+        if (Math.random() < 0.7) this.scheduleGlint(now + 0.05);
+        this.nextGlint = now + 16 + Math.random() * 24;
       }
-      this.leadFilter.frequency.setTargetAtTime(1600 + SHIP.audio.mid * 2000, now, 0.2);
 
-      SHIP.synth.energy *= 0.96;
+      SHIP.synth.energy = damp(SHIP.synth.energy, wind * 8 + breath * 4, 1.2, dt);
     }
   });
 })();

@@ -44,7 +44,7 @@
 <div id="vrhint"></div>
 <div id="overlay">
   <b>1–7</b> scene &nbsp; <b>N</b> next &nbsp; <b>A</b> autoplay &nbsp; <b>X</b> camera moves &nbsp; <b>C</b> fixed stops<br>
-  <b>L</b> letterbox &nbsp; <b>B</b> bloom &nbsp; <b>R</b> rumble &nbsp; <b>M</b> synth &nbsp; <b>H</b> hide text &nbsp; <b>WASD</b> walk &nbsp; <b>drag</b> look<br>
+  <b>L</b> letterbox &nbsp; <b>B</b> bloom &nbsp; <b>R</b> rumble &nbsp; <b>M</b> atmosphere &nbsp; <b>H</b> hide text &nbsp; <b>WASD</b> walk &nbsp; <b>drag</b> look<br>
   <b>VR</b> A/trigger next · B prev · X cinema · Y cams · grips auto/bloom · sticks click rumble/HUD
 </div>
 
@@ -2392,7 +2392,7 @@ AFRAME.registerComponent('audio-react', {
           const d = document.querySelector('a-scene').components.director;
           if (d) d.setAct(0, true);
           if (note) {
-            note.innerHTML = 'Deep Space Rumble + D major live score · ' +
+            note.innerHTML = 'Deep Space Rumble + soft D atmosphere · ' +
               Math.floor(el2.duration / 60) + ':' + ('0' + Math.floor(el2.duration % 60)).slice(-2);
             note.classList.add('on');
           }
@@ -2402,7 +2402,7 @@ AFRAME.registerComponent('audio-react', {
         const an = ctx.createAnalyser();
         an.fftSize = PERF < 0.85 ? 512 : 1024; an.smoothingTimeConstant = 0.72;
         const musicGain = ctx.createGain();
-        musicGain.gain.value = 0.2;
+        musicGain.gain.value = 0.28;
         srcNode.connect(an); an.connect(musicGain); musicGain.connect(ctx.destination);
         this.an = an; this.bins = new Uint8Array(an.frequencyBinCount); this.el2 = el2;
         ctx.resume();

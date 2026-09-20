@@ -12,7 +12,7 @@ Open `https://<your-lan-ip>:8443` on the headset (same Wi‑Fi), accept the cert
 
 ## Music
 
-`track.mp3` (*Deep Space Rumble*, detected **D major** @ ~53 BPM) loads as a quiet looping bed. A generative live score (`space-synth.js`) plays arpeggios, filter sweeps, and lead lines through stereo delays in that key — patterns shift with each scene. Press **M** to mute the synth.
+`track.mp3` (*Deep Space Rumble*, **D major**) loops as the main bed. A quiet atmospheric layer (`space-synth.js`) adds slow D drones, open fifths, soft space-wind noise, and rare high glints — no arps or lead lines. Press **M** to mute it.
 
 ## Visual life
 
